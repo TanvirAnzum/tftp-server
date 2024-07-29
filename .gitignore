@@ -32,7 +32,6 @@
 /CMakeFiles/
 /CMakeCache.txt
 /cmake_install.cmake
-/Makefile
 
 # Ignore configuration files and IDE specific files
 *.user

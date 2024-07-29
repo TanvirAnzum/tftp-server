@@ -140,7 +140,21 @@ typedef struct tftp_data_packet
 } DATA_PACKET;
 #pragma pack(0)
 
+/* global variables */
+tftp_server tftpd;
+
+/* macros */
+#define PRINT_ERROR(msg) fprintf(stderr, "%s: %s\n", msg, strerror(errno))
+
 /* functions */
-void tftp_server_init(p_tftp_server);
+void tftpd_handle_write_request(p_tftp_session session);
+void tftpd_handle_read_request(p_tftp_session session);
+p_tftp_session tftpd_packet_parser(char *buff, int len);
+int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t *data, uint32_t len);
+
+/*tftpd utils*/
+int append_to_buffer(char *buff, int offset, const char *str);
+long long get_file_size(const char *filename);
+void print_client_address(struct sockaddr_in6 *src_addr);
 
 #endif

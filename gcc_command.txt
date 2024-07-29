@@ -1,0 +1,1 @@
+gcc -o tftpd_server tftpd.c tftpd_cmd.c tftpd_rrq.c tftpd_wrq.c tftpd_utils.c tftpd_packet.c -lws2_32 -Wall
