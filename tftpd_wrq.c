@@ -12,7 +12,6 @@ void tftpd_handle_write_request(p_tftp_session session)
     struct timeval timeout;
     ERR_PACKET *err_packet = NULL;
     DATA_PACKET *data_packet = NULL;
-    ACK_PACKET ack_packet;
 
     uint8_t *file_buffer = (uint8_t *)malloc(FILE_BUFFER_SIZE);
     if (file_buffer == NULL)

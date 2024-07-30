@@ -20,7 +20,6 @@
 #ifdef WINDOWS
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
 #else
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -33,19 +32,26 @@
 /* tftp default values */
 #define OCTET_MODE 1
 #define NETASCII_MODE 2
-#define DEFAULT_TIMEOUT 5     /* in sec */
-#define MIN_BLKSIZE 8         /* in bytes */
-#define DEFAULT_BLKSIZE 512   /* in bytes */
-#define MAX_BLKSIZE 65464     /* in bytes */
-#define DEFAULT_WINDOW_SIZE 1 /* number of blocks in a window */
-#define MAX_WINDOW_SIZE 65535 /* number of blocks in a window */
-#define DEFAULT_TSIZE 0       /* null */
-#define MAX_RETRIES 3         /* max retry after timeout */
-#define MAX_CONNECTION 3      /* max concurrent connection */
-#define MAX_FILENAME 256      /* file name character limit */
-#define MAX_MODE 15           /* netascii or octet */
-#define DEFAULT_PORT 69       /* tftp well known port */
-#define MAX_TFTP_SESSIONS 3   /* number of tftp sessions */
+#define DEFAULT_TIMEOUT 5       /* in sec */
+#define MIN_BLKSIZE 8           /* in bytes */
+#define DEFAULT_BLKSIZE 512     /* in bytes */
+#define MAX_BLKSIZE 65464       /* in bytes */
+#define MIN_WINDOW_SIZE 1       /* number of blocks in a window */
+#define MAX_WINDOW_SIZE 65535   /* number of blocks in a window */
+#define DEFAULT_TSIZE 0         /* null */
+#define DEFAULT_RETRIES 3       /* max retry after timeout */
+#define MAX_CONNECTION 3        /* max concurrent connection */
+#define MAX_FILENAME 256        /* file name character limit */
+#define MAX_MODE 15             /* netascii or octet */
+#define DEFAULT_PORT 69         /* tftp well known port */
+#define MAX_TFTP_SESSIONS 3     /* number of tftp sessions */
+#define MAX_DIRECTORY_SIZE 1024 /* maximum directory size */
+#define MIN_TIMEOUT 1
+#define MAX_TIMEOUT 100
+#define MIN_PORT 1
+#define MAX_PORT 65535
+#define MIN_RETRIES 1
+#define MAX_RETRIES 10
 
 /* packet types */
 #define RRQ 1
@@ -71,7 +77,7 @@ typedef struct tftp_options_structure
     uint32_t timeout;
     uint32_t blocksize;
     uint32_t windowsize;
-    long long unsigned tsize;
+    uint32_t tsize;
 } tftp_options;
 
 /* tftp control strucutre*/
@@ -84,6 +90,7 @@ typedef struct tftpd_control_structure
     uint32_t blocksize;
     uint32_t windowsize;
     uint32_t tsize;
+    uint32_t retries;
     int socket_fd;
     struct sockaddr_in6 server_addr;
 } tftp_server, *p_tftp_server;
@@ -104,6 +111,18 @@ typedef struct tftpd_session_structure
     uint8_t mode; /* 1 for binary , 2 for net ascii */
     uint8_t options_enabled;
 } tftp_session, *p_tftp_session;
+
+/* tftp server commands */
+typedef struct tftp_server_commands
+{
+    uint16_t port;
+    uint32_t block_size;
+    uint32_t timeout;
+    uint32_t window_size;
+    uint32_t tsize;
+    uint32_t max_retries;
+    char directory[MAX_DIRECTORY_SIZE];
+} tftpd_commands;
 
 /* tftp packets */
 #pragma pack(1)
@@ -141,7 +160,8 @@ typedef struct tftp_data_packet
 #pragma pack(0)
 
 /* global variables */
-tftp_server tftpd;
+extern tftp_server tftpd;
+extern tftpd_commands tftpd_cmds;
 
 /* macros */
 #define PRINT_ERROR(msg) fprintf(stderr, "%s: %s\n", msg, strerror(errno))
@@ -151,10 +171,11 @@ void tftpd_handle_write_request(p_tftp_session session);
 void tftpd_handle_read_request(p_tftp_session session);
 p_tftp_session tftpd_packet_parser(char *buff, int len);
 int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t *data, uint32_t len);
+void tftp_server_args_parser(tftpd_commands *cmds, int argc, char **argv);
 
 /*tftpd utils*/
 int append_to_buffer(char *buff, int offset, const char *str);
 long long get_file_size(const char *filename);
 void print_client_address(struct sockaddr_in6 *src_addr);
-
+uint32_t digit_counter(long long unsigned n);
 #endif

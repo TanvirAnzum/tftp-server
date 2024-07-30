@@ -1,7 +1,11 @@
 #include "tftpd.h"
 
+/* global variable */
+tftp_server tftpd;
+tftpd_commands tftpd_cmds;
+
 /* functions */
-void tftp_server_init(p_tftp_server tftp_server);
+void tftp_server_init(p_tftp_server tftp_server, tftpd_commands cmds);
 void tftpd_start_session(p_tftp_session session);
 int tftpd_create_thread(p_tftp_session session);
 
@@ -16,10 +20,12 @@ int main(int argc, char **argv)
 {
     char buffer[BUFFER_SIZE];
     struct sockaddr_in6 client_addr;
-    int rv, len, session_counter;
+    int rv, len;
     p_tftp_session tftp_session = NULL;
 
-    tftp_server_init(&tftpd);
+    memset(&tftpd_cmds, 0, sizeof(tftpd_cmds));
+    tftp_server_args_parser(&tftpd_cmds, argc, argv);
+    tftp_server_init(&tftpd, tftpd_cmds);
 
     /* winsock initialization */
 #ifdef WINDOWS
@@ -111,12 +117,11 @@ clean_up:
 /* tftpd start session */
 void tftpd_start_session(p_tftp_session session)
 {
-    int len, rv, value, i;
-    struct sockaddr_in6 client_addr;
+    int rv, value;
     if (session == NULL)
     {
         printf("Thread parameter invalid\n");
-        return 0;
+        return;
     }
     session->socket_fd = socket(AF_INET6, SOCK_DGRAM, 0);
     if (session->socket_fd < 0)
@@ -157,7 +162,6 @@ void tftpd_start_session(p_tftp_session session)
             goto session_err;
         }
         session->options.tsize = get_file_size(session->filename);
-        printf("file size: %llu", session->options.tsize);
     }
 
     /* option negotiation */
@@ -187,7 +191,7 @@ session_err:
         free(session);
         session = NULL;
     }
-    return 0;
+    return;
 }
 #ifdef _WIN32
 DWORD WINAPI tftpd_thread_function(LPVOID param)
@@ -240,13 +244,14 @@ int tftpd_create_thread(p_tftp_session session)
     return 1;
 }
 
-void tftp_server_init(p_tftp_server tftp_server)
+void tftp_server_init(p_tftp_server tftp_server, tftpd_commands cmds)
 {
-    tftp_server->blocksize = DEFAULT_BLKSIZE;
-    tftp_server->port = DEFAULT_PORT;
+    tftp_server->blocksize = cmds.block_size ? cmds.block_size : DEFAULT_BLKSIZE;
+    tftp_server->port = cmds.port ? cmds.port : DEFAULT_PORT;
     tftp_server->session_count = 0;
-    tftp_server->timeout = DEFAULT_TIMEOUT;
-    tftp_server->tsize = 0;
-    tftp_server->windowsize = 1;
+    tftp_server->timeout = cmds.timeout ? cmds.timeout : DEFAULT_TIMEOUT;
+    tftp_server->tsize = cmds.tsize ? cmds.tsize : 0;
+    tftp_server->windowsize = cmds.window_size ? cmds.window_size : MIN_WINDOW_SIZE;
+    tftp_server->retries = cmds.max_retries ? cmds.max_retries : DEFAULT_RETRIES;
     return;
 }

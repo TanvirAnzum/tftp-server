@@ -59,7 +59,7 @@ p_tftp_session tftpd_packet_parser(char *buff, int len)
         if (strcmp(option, "blksize") == 0)
         {
             number = atoi(value);
-            if (number < 8)
+            if (number < MIN_BLKSIZE)
                 new_session->options.blocksize = MIN_BLKSIZE;
             else if (number > MAX_BLKSIZE)
                 new_session->options.blocksize = MAX_BLKSIZE;
@@ -81,8 +81,8 @@ p_tftp_session tftpd_packet_parser(char *buff, int len)
         else if (strcmp(option, "windowsize") == 0)
         {
             number = atoi(value);
-            if (number < DEFAULT_WINDOW_SIZE)
-                new_session->options.windowsize = DEFAULT_WINDOW_SIZE;
+            if (number < MIN_WINDOW_SIZE)
+                new_session->options.windowsize = MIN_WINDOW_SIZE;
             else if (number > MAX_WINDOW_SIZE)
                 new_session->options.windowsize = MAX_WINDOW_SIZE;
 
@@ -98,7 +98,7 @@ p_tftp_session tftpd_packet_parser(char *buff, int len)
     if (!new_session->options.timeout)
         new_session->options.timeout = DEFAULT_TIMEOUT;
     if (!new_session->options.windowsize)
-        new_session->options.windowsize = DEFAULT_WINDOW_SIZE;
+        new_session->options.windowsize = MIN_WINDOW_SIZE;
 
     if (option_flag)
         new_session->options_enabled = TRUE;
@@ -142,7 +142,7 @@ int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t
             sprintf(buff + packet_len, "%u", session->options.timeout);
             packet_len += digit_counter(session->options.timeout) + 1;
         }
-        if (session->options.windowsize != DEFAULT_WINDOW_SIZE)
+        if (session->options.windowsize != MIN_WINDOW_SIZE)
         {
             sprintf(buff + packet_len, "windowsize");
             packet_len += 9 + 1; // 1 for null terminator
@@ -152,7 +152,7 @@ int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t
 
         sprintf(buff + packet_len, "tsize");
         packet_len += 5 + 1; // 1 for null terminator
-        sprintf(buff + packet_len, "%llu", session->options.tsize);
+        sprintf(buff + packet_len, "%u", session->options.tsize);
         packet_len += digit_counter(session->options.tsize);
 
         /* code */
