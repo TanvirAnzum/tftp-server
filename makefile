@@ -1,3 +1,10 @@
+# RM command declaration
+ifeq ($(OS),Windows_NT)
+    RM = del /Q
+else
+    RM = rm -f
+endif
+
 # Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99
@@ -30,11 +37,11 @@ $(TARGET): $(OBJS)
 
 # Clean up generated files
 clean:
-	rm -f $(TARGET) $(OBJS)
+	$(RM) $(TARGET) $(OBJS)
 
 # Remove object files after successful build
 clean_objects:
-	rm -f $(OBJS)
+	$(RM) -f $(OBJS)
 
 # Phony targets to avoid conflicts with files named 'all' or 'clean'
 .PHONY: all clean clean_objects

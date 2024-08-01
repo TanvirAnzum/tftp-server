@@ -20,7 +20,7 @@ void tftpd_handle_write_request(p_tftp_session session)
         return;
     }
 
-    session->file_fd = fopen(session->filename, "wb");
+    session->file_fd = fopen(session->path, "wb");
     if (session->file_fd == NULL)
         goto write_err;
 
@@ -84,7 +84,14 @@ void tftpd_handle_write_request(p_tftp_session session)
                         if (bytes_received < session->options.blocksize)
                             last_block = TRUE;
 
-                        tftpd_packet_send(session, ACK, NULL, NULL, 0);
+                        rv = tftpd_packet_send(session, ACK, NULL, NULL, 0);
+                        if (rv < 0)
+                        {
+                            printf("file packet send error\n");
+                            goto write_err;
+                        }
+                        session->bytes_transferred += bytes_received;
+                        update_progress_bar(session);
                         break;
                     case ERR:
                         err_packet = (ERR_PACKET *)buffer;

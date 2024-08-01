@@ -20,6 +20,8 @@
 #ifdef WINDOWS
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <direct.h>
+#define getcwd _getcwd
 #else
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -52,6 +54,18 @@
 #define MAX_PORT 65535
 #define MIN_RETRIES 1
 #define MAX_RETRIES 10
+#define BOX_WIDTH 60
+
+/* directory related */
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
+#ifdef _WIN32
+#define PATH_SEPARATOR "\\"
+#else
+#define PATH_SEPARATOR "/"
+#endif
 
 /* packet types */
 #define RRQ 1
@@ -91,6 +105,7 @@ typedef struct tftpd_control_structure
     uint32_t windowsize;
     uint32_t tsize;
     uint32_t retries;
+    char directory[MAX_DIRECTORY_SIZE];
     int socket_fd;
     struct sockaddr_in6 server_addr;
 } tftp_server, *p_tftp_server;
@@ -103,26 +118,16 @@ typedef struct tftpd_session_structure
     tftp_options options;
     FILE *file_fd;
     char filename[MAX_FILENAME];
+    char path[MAX_PATH];
     int socket_fd;
     uint32_t block_counter;
     uint32_t offset;
+    uint32_t bytes_transferred;
     uint16_t transfer_id;
     uint16_t opcode;
     uint8_t mode; /* 1 for binary , 2 for net ascii */
     uint8_t options_enabled;
 } tftp_session, *p_tftp_session;
-
-/* tftp server commands */
-typedef struct tftp_server_commands
-{
-    uint16_t port;
-    uint32_t block_size;
-    uint32_t timeout;
-    uint32_t window_size;
-    uint32_t tsize;
-    uint32_t max_retries;
-    char directory[MAX_DIRECTORY_SIZE];
-} tftpd_commands;
 
 /* tftp packets */
 #pragma pack(1)
@@ -161,7 +166,6 @@ typedef struct tftp_data_packet
 
 /* global variables */
 extern tftp_server tftpd;
-extern tftpd_commands tftpd_cmds;
 
 /* macros */
 #define PRINT_ERROR(msg) fprintf(stderr, "%s: %s\n", msg, strerror(errno))
@@ -171,11 +175,15 @@ void tftpd_handle_write_request(p_tftp_session session);
 void tftpd_handle_read_request(p_tftp_session session);
 p_tftp_session tftpd_packet_parser(char *buff, int len);
 int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t *data, uint32_t len);
-void tftp_server_args_parser(tftpd_commands *cmds, int argc, char **argv);
+void tftp_server_args_parser(p_tftp_server server, int argc, char **argv);
 
 /*tftpd utils*/
 int append_to_buffer(char *buff, int offset, const char *str);
 long long get_file_size(const char *filename);
 void print_client_address(struct sockaddr_in6 *src_addr);
 uint32_t digit_counter(long long unsigned n);
+int is_valid_directory(const char *path);
+void update_progress_bar(p_tftp_session session);
+void get_local_time(char *buffer, size_t buffer_size);
+
 #endif

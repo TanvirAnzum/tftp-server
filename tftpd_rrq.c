@@ -21,7 +21,7 @@ void tftpd_handle_read_request(p_tftp_session session)
         return;
     }
 
-    session->file_fd = fopen(session->filename, "rb");
+    session->file_fd = fopen(session->path, "rb");
     if (session->file_fd == NULL)
         goto read_err;
 
@@ -81,7 +81,7 @@ void tftpd_handle_read_request(p_tftp_session session)
         if (bytes_read - bytes_sent < session->options.blocksize)
             last_block = TRUE;
 
-        while (retries < MAX_RETRIES)
+        while (retries < tftpd.retries)
         {
             uint32_t data_size = !last_block ? session->options.blocksize : (bytes_read - bytes_sent);
             rv = tftpd_packet_send(session, DATA, NULL, file_buffer + bytes_sent, data_size);
@@ -91,7 +91,6 @@ void tftpd_handle_read_request(p_tftp_session session)
                 goto read_err;
             }
             bytes_sent += data_size;
-
             /* init the fd set */
             FD_ZERO(&read_fds);
             FD_SET(session->socket_fd, &read_fds);
@@ -125,6 +124,8 @@ void tftpd_handle_read_request(p_tftp_session session)
                             tftpd_packet_send(session, ERR, "packet block mismatch", NULL, 0);
                             goto read_err;
                         }
+                        session->bytes_transferred += data_size;
+                        update_progress_bar(session);
                         break;
                     case ERR:
                         err_packet = (ERR_PACKET *)buffer;
@@ -139,7 +140,7 @@ void tftpd_handle_read_request(p_tftp_session session)
             }
         }
 
-        if (retries == MAX_RETRIES)
+        if (retries == tftpd.retries)
         {
             tftpd_packet_send(session, ERR, "timeout", NULL, 0);
             goto read_err;

@@ -2,12 +2,12 @@
 
 /* global variable */
 tftp_server tftpd;
-tftpd_commands tftpd_cmds;
 
 /* functions */
-void tftp_server_init(p_tftp_server tftp_server, tftpd_commands cmds);
 void tftpd_start_session(p_tftp_session session);
 int tftpd_create_thread(p_tftp_session session);
+void print_info(void);
+void tftp_server_init(void);
 
 #ifdef _WIN32
 DWORD WINAPI tftpd_thread_function(LPVOID param);
@@ -22,11 +22,11 @@ int main(int argc, char **argv)
     struct sockaddr_in6 client_addr;
     int rv, len;
     p_tftp_session tftp_session = NULL;
+    char time[50];
 
-    memset(&tftpd_cmds, 0, sizeof(tftpd_cmds));
-    tftp_server_args_parser(&tftpd_cmds, argc, argv);
-    tftp_server_init(&tftpd, tftpd_cmds);
-
+    tftp_server_init();
+    tftp_server_args_parser(&tftpd, argc, argv);
+    print_info();
     /* winsock initialization */
 #ifdef WINDOWS
     WSADATA wsa;
@@ -72,13 +72,12 @@ int main(int argc, char **argv)
     {
         memset(buffer, 0, BUFFER_SIZE);
         memset(&client_addr, 0, sizeof(client_addr));
-        printf("TFTP server is listening on port: %d\n", tftpd.port);
+        printf("\nTFTP server is listening on port: %d\n", tftpd.port);
 
         rv = recvfrom(tftpd.socket_fd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, &len);
         if (rv < 0)
             continue;
 
-        print_client_address(&client_addr);
         tftp_session = tftpd_packet_parser(buffer, rv);
         if (tftp_session == NULL)
         {
@@ -89,7 +88,11 @@ int main(int argc, char **argv)
         /* client address copy */
         tftp_session->transfer_id = ntohs(client_addr.sin6_port);
         memcpy(&tftp_session->client_addr, &client_addr, sizeof(tftp_session->client_addr));
-
+        tftpd.session_count++;
+        get_local_time(time, 50);
+        printf("%s: TFTP session: %u\n", time, tftpd.session_count);
+        print_client_address(&client_addr);
+        printf("File name: %s\n", tftp_session->filename);
         /* new thread creation */
         rv = tftpd_create_thread(tftp_session);
         if (!rv)
@@ -99,6 +102,8 @@ int main(int argc, char **argv)
             tftp_session = NULL;
             continue;
         }
+        get_local_time(time, 50);
+        printf("\n%s: TFTP session %u has finished.\n", time, tftpd.session_count);
     }
 
 /* cleaning up when error occured */
@@ -153,15 +158,29 @@ void tftpd_start_session(p_tftp_session session)
     }
 
     /* check file for read request */
+    /* getting the directory */
+    if (strlen(tftpd.directory) > 0)
+    {
+        if (snprintf(session->path, PATH_MAX, "%s%s%s", tftpd.directory, PATH_SEPARATOR, session->filename) >= PATH_MAX)
+        {
+            fprintf(stderr, "Error: Path too long\n");
+            goto session_err; // or handle the error appropriately
+        }
+    }
+    else
+        strncpy(session->path, session->filename, PATH_MAX);
+
+    printf("d: %s\n", session->path);
+
     if (session->opcode == RRQ)
     {
-        if (access(session->filename, F_OK) == -1)
+        if (access(session->path, F_OK) == -1)
         {
             printf("The file does not exist in the current directory\n");
             tftpd_packet_send(session, ERR, "file not found", NULL, 0);
             goto session_err;
         }
-        session->options.tsize = get_file_size(session->filename);
+        session->options.tsize = get_file_size(session->path);
     }
 
     /* option negotiation */
@@ -244,14 +263,42 @@ int tftpd_create_thread(p_tftp_session session)
     return 1;
 }
 
-void tftp_server_init(p_tftp_server tftp_server, tftpd_commands cmds)
+void print_info(void)
 {
-    tftp_server->blocksize = cmds.block_size ? cmds.block_size : DEFAULT_BLKSIZE;
-    tftp_server->port = cmds.port ? cmds.port : DEFAULT_PORT;
-    tftp_server->session_count = 0;
-    tftp_server->timeout = cmds.timeout ? cmds.timeout : DEFAULT_TIMEOUT;
-    tftp_server->tsize = cmds.tsize ? cmds.tsize : 0;
-    tftp_server->windowsize = cmds.window_size ? cmds.window_size : MIN_WINDOW_SIZE;
-    tftp_server->retries = cmds.max_retries ? cmds.max_retries : DEFAULT_RETRIES;
+    char horizontal_line[BOX_WIDTH + 1];
+    memset(horizontal_line, '-', BOX_WIDTH);
+    horizontal_line[BOX_WIDTH] = '\0';
+
+    printf("+%s+\n", horizontal_line);
+    printf("| %-59s|\n", "TFTP Server Information");
+    printf("+%s+\n", horizontal_line);
+
+    printf("| Transfer Mode: %-44s|\n", (tftpd.transfer_mode == OCTET_MODE) ? "octet" : "net-ascii");
+    printf("| Port: %-53d|\n", tftpd.port);
+    printf("| Timeout: %-50u|\n", tftpd.timeout);
+    printf("| Block Size: %-47u|\n", tftpd.blocksize);
+    printf("| Window Size: %-46u|\n", tftpd.windowsize);
+    printf("| Retries: %-50u|\n", tftpd.retries);
+    printf("| Directory: %-48s|\n", (tftpd.directory[0] == 0) ? "current" : tftpd.directory);
+    printf("+%s+\n", horizontal_line);
+
+    printf("| %-59s|\n", "Developed by:");
+    printf("| %-59s|\n", "Md. Tanvir Anzum");
+    printf("| %-59s|\n", "R&D Engineer, BDCOM");
+    printf("+%s+\n", horizontal_line);
+    return;
+}
+
+void tftp_server_init(void)
+{
+    tftpd.blocksize = DEFAULT_BLKSIZE;
+    tftpd.port = DEFAULT_PORT;
+    tftpd.session_count = 0;
+    tftpd.timeout = DEFAULT_TIMEOUT;
+    tftpd.tsize = DEFAULT_TSIZE;
+    tftpd.windowsize = MIN_WINDOW_SIZE;
+    tftpd.directory[0] = '\0';
+    tftpd.retries = DEFAULT_RETRIES;
+    tftpd.transfer_mode = OCTET_MODE;
     return;
 }

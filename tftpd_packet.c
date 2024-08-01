@@ -92,13 +92,13 @@ p_tftp_session tftpd_packet_parser(char *buff, int len)
 
     /* if there is no option available, populate with the default value */
     if (!new_session->options.blocksize)
-        new_session->options.blocksize = DEFAULT_BLKSIZE;
+        new_session->options.blocksize = tftpd.blocksize;
     if (!new_session->options.tsize)
-        new_session->options.tsize = DEFAULT_TSIZE;
+        new_session->options.tsize = tftpd.tsize;
     if (!new_session->options.timeout)
-        new_session->options.timeout = DEFAULT_TIMEOUT;
+        new_session->options.timeout = tftpd.timeout;
     if (!new_session->options.windowsize)
-        new_session->options.windowsize = MIN_WINDOW_SIZE;
+        new_session->options.windowsize = tftpd.windowsize;
 
     if (option_flag)
         new_session->options_enabled = TRUE;
