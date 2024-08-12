@@ -1,16 +1,17 @@
 # RM command declaration
 ifeq ($(OS),Windows_NT)
     RM = del /Q
+	LIBS = -lws2_32
+	TARGET = tftp_server.exe
 else
     RM = rm -f
+	LIBS = -lpthread
+	TARGET = tftp_server
 endif
 
 # Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99
-
-# Output binary name
-TARGET = tftp_server.exe
 
 # Source files
 SRCS = tftpd.c tftpd_cmd.c tftpd_rrq.c tftpd_wrq.c tftpd_utils.c tftpd_packet.c
@@ -20,9 +21,6 @@ OBJS = $(SRCS:.c=.o)
 
 # Header files
 HEADERS = tftpd.h
-
-# Library for Winsock
-LIBS = -lws2_32
 
 # Default target to build the executable
 all: $(TARGET) clean_objects
@@ -41,7 +39,7 @@ clean:
 
 # Remove object files after successful build
 clean_objects:
-	$(RM) -f $(OBJS)
+	$(RM) $(OBJS)
 
 # Phony targets to avoid conflicts with files named 'all' or 'clean'
 .PHONY: all clean clean_objects

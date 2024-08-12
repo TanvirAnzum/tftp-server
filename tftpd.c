@@ -20,16 +20,17 @@ int main(int argc, char **argv)
 {
     char buffer[BUFFER_SIZE];
     struct sockaddr_in6 client_addr;
-    int rv, len;
+    socklen_t len;
+    int rv;
     p_tftp_session tftp_session = NULL;
     char time[50];
-
     tftp_server_init();
     tftp_server_args_parser(&tftpd, argc, argv);
     print_info();
     /* winsock initialization */
 #ifdef WINDOWS
     WSADATA wsa;
+    printf("wasa\n");
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
     {
         printf("Win sock initialization failed. Error code: %d", WSAGetLastError());
@@ -41,6 +42,8 @@ int main(int argc, char **argv)
     if (tftpd.socket_fd < 0)
     {
         printf("Socket creation failed. Error code: %d\n", tftpd.socket_fd);
+        perror("socket failed\n");
+        PRINT_ERROR("socket");
         goto clean_up;
     }
 
@@ -63,7 +66,9 @@ int main(int argc, char **argv)
     rv = bind(tftpd.socket_fd, (struct sockaddr *)&tftpd.server_addr, sizeof(tftpd.server_addr));
     if (rv < 0)
     {
-        printf("Socket bind failed. Error code: %d\n", rv);
+        printf("Socket bind failed ---- . Error code: %d\n", rv);
+        perror("bind failed\n");
+        PRINT_ERROR("bind");
         goto clean_up;
     }
     /* udp packet receiving loop */
@@ -98,8 +103,11 @@ int main(int argc, char **argv)
         if (!rv)
         {
             printf("TFTP new thread creation failed\n");
-            free(tftp_session);
-            tftp_session = NULL;
+            if (tftp_session)
+            {
+                free(tftp_session);
+                tftp_session = NULL;
+            }
             continue;
         }
         get_local_time(time, 50);
@@ -161,16 +169,14 @@ void tftpd_start_session(p_tftp_session session)
     /* getting the directory */
     if (strlen(tftpd.directory) > 0)
     {
-        if (snprintf(session->path, PATH_MAX, "%s%s%s", tftpd.directory, PATH_SEPARATOR, session->filename) >= PATH_MAX)
+        if (snprintf(session->path, MAX_PATH, "%s%s%s", tftpd.directory, PATH_SEPARATOR, session->filename) >= MAX_PATH)
         {
             fprintf(stderr, "Error: Path too long\n");
             goto session_err; // or handle the error appropriately
         }
     }
     else
-        strncpy(session->path, session->filename, PATH_MAX);
-
-    printf("d: %s\n", session->path);
+        strncpy(session->path, session->filename, MAX_PATH);
 
     if (session->opcode == RRQ)
     {

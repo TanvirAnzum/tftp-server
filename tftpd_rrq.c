@@ -6,7 +6,8 @@ void tftpd_handle_read_request(p_tftp_session session)
     uint8_t last_block = FALSE;
     uint16_t opcode;
     uint32_t bytes_sent = 0, bytes_read = 0, retries, file_buffer_size;
-    int rv, client_len;
+    socklen_t client_len;
+    int rv;
     char buffer[BUFFER_SIZE];
     struct sockaddr_in6 client_addr;
     fd_set read_fds;

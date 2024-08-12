@@ -115,7 +115,7 @@ int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t
     DATA_PACKET *data_packet = NULL;
     char buff[session->options.blocksize + 100];
     memset(buff, 0, sizeof(buff));
-    uint32_t packet_len = 0;
+    socklen_t packet_len = 0;
     int rv = 0;
 
     // window size porjnto pathabeo ekhan theke

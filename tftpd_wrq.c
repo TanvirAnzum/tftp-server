@@ -5,7 +5,8 @@ void tftpd_handle_write_request(p_tftp_session session)
     uint8_t last_block = FALSE;
     uint16_t opcode;
     uint32_t bytes_written = 0, bytes_received = 0, retries;
-    int rv, client_len;
+    socklen_t client_len;
+    int rv;
     char buffer[session->options.blocksize + 100];
     struct sockaddr_in6 client_addr;
     fd_set write_fds;

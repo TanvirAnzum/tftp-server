@@ -8,7 +8,8 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
-// #include "thread.h"
+#include <limits.h>
+#include <ctype.h>
 
 /* OS specific */
 #ifdef _WIN32
@@ -23,7 +24,10 @@
 #include <direct.h>
 #define getcwd _getcwd
 #else
+#include <pthread.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/stat.h>
 #include <arpa/inet.h>
 #endif
 
@@ -56,9 +60,13 @@
 #define MAX_RETRIES 10
 #define BOX_WIDTH 60
 
+/* boolean */
+#define TRUE 1
+#define FALSE 0
+
 /* directory related */
-#ifndef PATH_MAX
-#define PATH_MAX 4096
+#ifndef MAX_PATH
+#define MAX_PATH 300
 #endif
 
 #ifdef _WIN32
@@ -118,7 +126,7 @@ typedef struct tftpd_session_structure
     tftp_options options;
     FILE *file_fd;
     char filename[MAX_FILENAME];
-    char path[MAX_PATH];
+    char path[MAX_PATH + 1];
     int socket_fd;
     uint32_t block_counter;
     uint32_t offset;

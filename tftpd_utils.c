@@ -66,7 +66,7 @@ int is_valid_directory(const char *path)
         return FALSE;
     }
 
-    char full_path[PATH_MAX];
+    char full_path[MAX_PATH];
 
     // If path is relative, make it absolute
     if (path[0] != '/' && (path[0] == '\0' || path[1] != ':'))
@@ -101,7 +101,7 @@ int is_valid_directory(const char *path)
     struct stat st;
     if (stat(full_path, &st) != 0 || !S_ISDIR(st.st_mode))
     {
-        return false;
+        return FALSE;
     }
 #endif
 
@@ -124,9 +124,8 @@ int is_valid_directory(const char *path)
 /* progress bar */
 void update_progress_bar(p_tftp_session session)
 {
-    static int last_percent = -1;
-    int percent;
-    int i;
+    static int32_t last_percent = -1;
+    uint32_t percent, i;
 
     // Clear the line
     printf("\r");
