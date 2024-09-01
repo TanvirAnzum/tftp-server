@@ -23,17 +23,16 @@ int main(int argc, char **argv)
     socklen_t len;
     int rv;
     p_tftp_session tftp_session = NULL;
-    char time[50];
+    char time[TIME_BUFFER];
     tftp_server_init();
     tftp_server_args_parser(&tftpd, argc, argv);
     print_info();
     /* winsock initialization */
 #ifdef WINDOWS
     WSADATA wsa;
-    printf("wasa\n");
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
     {
-        printf("Win sock initialization failed. Error code: %d", WSAGetLastError());
+        PRINT_ERROR("Winsock initialization failed");
         goto clean_up;
     }
 #endif
@@ -41,9 +40,7 @@ int main(int argc, char **argv)
     tftpd.socket_fd = socket(AF_INET6, SOCK_DGRAM, 0);
     if (tftpd.socket_fd < 0)
     {
-        printf("Socket creation failed. Error code: %d\n", tftpd.socket_fd);
-        perror("socket failed\n");
-        PRINT_ERROR("socket");
+        PRINT_ERROR("socket initialization failed");
         goto clean_up;
     }
 
@@ -52,7 +49,7 @@ int main(int argc, char **argv)
     rv = setsockopt(tftpd.socket_fd, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&value, sizeof(value));
     if (rv == -1)
     {
-        printf("setsockopt failed.\n");
+        PRINT_ERROR("Socket option modification failed");
         goto clean_up;
     }
 
@@ -66,9 +63,7 @@ int main(int argc, char **argv)
     rv = bind(tftpd.socket_fd, (struct sockaddr *)&tftpd.server_addr, sizeof(tftpd.server_addr));
     if (rv < 0)
     {
-        printf("Socket bind failed ---- . Error code: %d\n", rv);
-        perror("bind failed\n");
-        PRINT_ERROR("bind");
+        PRINT_ERROR("Socket binding failed");
         goto clean_up;
     }
     /* udp packet receiving loop */
@@ -77,7 +72,10 @@ int main(int argc, char **argv)
     {
         memset(buffer, 0, BUFFER_SIZE);
         memset(&client_addr, 0, sizeof(client_addr));
+
+        CLR_SECONDARY;
         printf("\nTFTP server is listening on port: %d\n", tftpd.port);
+        CLR_RESET;
 
         rv = recvfrom(tftpd.socket_fd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, &len);
         if (rv < 0)
@@ -89,20 +87,20 @@ int main(int argc, char **argv)
             printf("TFTP new session creation failed\n");
             continue;
         }
-
         /* client address copy */
         tftp_session->transfer_id = ntohs(client_addr.sin6_port);
         memcpy(&tftp_session->client_addr, &client_addr, sizeof(tftp_session->client_addr));
         tftpd.session_count++;
-        get_local_time(time, 50);
+        get_local_time(time, TIME_BUFFER);
         printf("%s: TFTP session: %u\n", time, tftpd.session_count);
         print_client_address(&client_addr);
         printf("File name: %s\n", tftp_session->filename);
+
         /* new thread creation */
         rv = tftpd_create_thread(tftp_session);
         if (!rv)
         {
-            printf("TFTP new thread creation failed\n");
+            PRINT_ERROR("Thread creation failed");
             if (tftp_session)
             {
                 free(tftp_session);
@@ -110,8 +108,6 @@ int main(int argc, char **argv)
             }
             continue;
         }
-        get_local_time(time, 50);
-        printf("\n%s: TFTP session %u has finished.\n", time, tftpd.session_count);
     }
 
 /* cleaning up when error occured */
@@ -131,15 +127,17 @@ clean_up:
 void tftpd_start_session(p_tftp_session session)
 {
     int rv, value;
+    char time[TIME_BUFFER];
+
     if (session == NULL)
     {
-        printf("Thread parameter invalid\n");
+        PRINT_ERROR("Thread parameter is NULL");
         return;
     }
     session->socket_fd = socket(AF_INET6, SOCK_DGRAM, 0);
     if (session->socket_fd < 0)
     {
-        printf("Socket creation failed on thread. Error code: %d\n", session->socket_fd);
+        PRINT_ERROR("Session socket initialization failed");
         goto session_err;
     }
     /* set IPV6_ONLY false */
@@ -147,7 +145,7 @@ void tftpd_start_session(p_tftp_session session)
     rv = setsockopt(session->socket_fd, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&value, sizeof(value));
     if (rv == -1)
     {
-        printf("setsockopt failed.\n");
+        PRINT_ERROR("Session socket option modification failed");
         goto session_err;
     }
 
@@ -161,7 +159,7 @@ void tftpd_start_session(p_tftp_session session)
     rv = bind(session->socket_fd, (struct sockaddr *)&session->server_addr, sizeof(session->server_addr));
     if (rv < 0)
     {
-        printf("Socket bind failed. Error code: %d\n", rv);
+        PRINT_ERROR("Session socket binding failed");
         goto session_err;
     }
 
@@ -171,7 +169,7 @@ void tftpd_start_session(p_tftp_session session)
     {
         if (snprintf(session->path, MAX_PATH, "%s%s%s", tftpd.directory, PATH_SEPARATOR, session->filename) >= MAX_PATH)
         {
-            fprintf(stderr, "Error: Path too long\n");
+            PRINT_ERROR("Session directory too long");
             goto session_err; // or handle the error appropriately
         }
     }
@@ -182,8 +180,8 @@ void tftpd_start_session(p_tftp_session session)
     {
         if (access(session->path, F_OK) == -1)
         {
-            printf("The file does not exist in the current directory\n");
-            tftpd_packet_send(session, ERR, "file not found", NULL, 0);
+            PRINT_ERROR("File not found");
+            tftpd_packet_send(session, ERR, NULL, ERR_FILE_NOT_FOUND);
             goto session_err;
         }
         session->options.tsize = get_file_size(session->path);
@@ -191,21 +189,30 @@ void tftpd_start_session(p_tftp_session session)
 
     /* option negotiation */
     if (session->options_enabled)
-        tftpd_packet_send(session, OACK, NULL, NULL, 0);
+        tftpd_packet_send(session, OACK, NULL, 0);
 
     /* opcode checking */
     switch (session->opcode)
     {
     case RRQ:
-        tftpd_handle_read_request(session);
+        rv = tftpd_handle_read_request(session);
         break;
     case WRQ:
-        tftpd_handle_write_request(session);
+        rv = tftpd_handle_write_request(session);
         break;
     default:
-        printf("invalid opcode: %d\n", session->opcode);
+        PRINT_ERROR("Invalid opcode, Transfer aborted.");
         goto session_err;
         break;
+    }
+
+    if (rv == SESSION_SUCCEED)
+    {
+        memset(time, 0, TIME_BUFFER);
+        get_local_time(time, TIME_BUFFER);
+        CLR_SUCCESS;
+        printf("\n%s: TFTP session %u has finished.\n", time, tftpd.session_count);
+        CLR_RESET;
     }
 
 session_err:
@@ -243,11 +250,12 @@ int tftpd_create_thread(p_tftp_session session)
     hThread = CreateThread(NULL, 0, tftpd_thread_function, session, 0, &dwThreadId);
     if (hThread == NULL)
     {
-        printf("CreateThread failed\n");
+        PRINT_ERROR("Thread creation failed");
         return 0;
     }
 
     // Wait for the thread to complete
+    // If you want concurrent connection just remove this line
     WaitForSingleObject(hThread, INFINITE);
 
     // Close the thread handle
@@ -259,7 +267,7 @@ int tftpd_create_thread(p_tftp_session session)
     result = pthread_create(&thread, NULL, tftpd_thread_function, session);
     if (result)
     {
-        printf("pthread_create failed: %d\n", result);
+        PRINT_ERROR("Thread creation failed");
         return 0;
     }
 
@@ -274,7 +282,7 @@ void print_info(void)
     char horizontal_line[BOX_WIDTH + 1];
     memset(horizontal_line, '-', BOX_WIDTH);
     horizontal_line[BOX_WIDTH] = '\0';
-
+    CLR_PRIMARY;
     printf("+%s+\n", horizontal_line);
     printf("| %-59s|\n", "TFTP Server Information");
     printf("+%s+\n", horizontal_line);
@@ -292,19 +300,54 @@ void print_info(void)
     printf("| %-59s|\n", "Md. Tanvir Anzum");
     printf("| %-59s|\n", "R&D Engineer, BDCOM");
     printf("+%s+\n", horizontal_line);
+    CLR_RESET;
     return;
 }
 
 void tftp_server_init(void)
 {
-    tftpd.blocksize = DEFAULT_BLKSIZE;
-    tftpd.port = DEFAULT_PORT;
+    memset(&tftpd, 0, sizeof(tftp_server));
+    FILE *fp = fopen(SAVE_FILE, "rb");
+    if (fp)
+    {
+        size_t bytes_read = fread(&tftpd, sizeof(tftp_server), 1, fp);
+        if (bytes_read == 1)
+        {
+            CLR_WARNING;
+            printf("Old configuration preloaded.\n");
+            CLR_RESET;
+            tftpd.socket_fd = 0;
+            memset(&tftpd.server_addr, 0, sizeof(tftpd.server_addr));
+        }
+        else
+            memset(&tftpd, 0, sizeof(tftp_server));
+
+        fclose(fp);
+    }
+
+    if (tftpd.blocksize < MIN_BLKSIZE || tftpd.blocksize > MAX_BLKSIZE)
+        tftpd.blocksize = DEFAULT_BLKSIZE;
+
+    if (tftpd.port < MIN_PORT || tftpd.port > MAX_PORT)
+        tftpd.port = DEFAULT_PORT;
+
+    if (tftpd.timeout < MIN_TIMEOUT || tftpd.timeout > MAX_TIMEOUT)
+        tftpd.timeout = DEFAULT_TIMEOUT;
+
+    if (!tftpd.tsize)
+        tftpd.tsize = DEFAULT_TSIZE;
+
+    if (tftpd.windowsize < MIN_WINDOW_SIZE || tftpd.windowsize > MAX_WINDOW_SIZE)
+        tftpd.windowsize = MIN_WINDOW_SIZE;
+
+    if (tftpd.retries < MIN_RETRIES || tftpd.retries > MAX_RETRIES)
+        tftpd.retries = DEFAULT_RETRIES;
+
     tftpd.session_count = 0;
-    tftpd.timeout = DEFAULT_TIMEOUT;
-    tftpd.tsize = DEFAULT_TSIZE;
-    tftpd.windowsize = MIN_WINDOW_SIZE;
-    tftpd.directory[0] = '\0';
-    tftpd.retries = DEFAULT_RETRIES;
     tftpd.transfer_mode = OCTET_MODE;
+
+    if (!is_valid_directory(tftpd.directory))
+        tftpd.directory[0] = '\0';
+
     return;
 }

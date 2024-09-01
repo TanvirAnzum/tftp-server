@@ -12,11 +12,12 @@
 
 void tftp_server_args_parser(p_tftp_server server, int argc, char **argv)
 {
-    int i;
+    int i, save_config;
     uint32_t value;
     if (server == NULL)
         return;
 
+    save_config = FALSE;
     for (i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "-b") == 0)
@@ -43,7 +44,10 @@ void tftp_server_args_parser(p_tftp_server server, int argc, char **argv)
             {
                 value = strlen(argv[i]);
                 if (value && is_valid_directory(argv[i]))
+                {
+                    memset(server->directory, 0, sizeof(server->directory));
                     strncpy(server->directory, argv[i], value);
+                }
             }
         }
         else if (strcmp(argv[i], "-w") == 0)
@@ -81,6 +85,26 @@ void tftp_server_args_parser(p_tftp_server server, int argc, char **argv)
                 if (value < UINT_MAX)
                     server->tsize = value;
             }
+        }
+        else if (strcmp(argv[i], "-save") == 0)
+        {
+            save_config = TRUE;
+            i++;
+        }
+    }
+
+    if (save_config)
+    {
+        FILE *fp = fopen(SAVE_FILE, "wb");
+        if (fp == NULL)
+            PRINT_ERROR("Couldn't create config file, config won't be saved");
+        else
+        {
+            i = fwrite(server, sizeof(tftp_server), 1, fp);
+            if (i < 0)
+                PRINT_ERROR("Couldn't write config, config won't be saved");
+            fclose(fp);
+            fp = NULL;
         }
     }
 

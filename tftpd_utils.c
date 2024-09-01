@@ -62,9 +62,7 @@ uint32_t digit_counter(long long unsigned n)
 int is_valid_directory(const char *path)
 {
     if (path == NULL || strlen(path) == 0)
-    {
         return FALSE;
-    }
 
     char full_path[MAX_PATH];
 
@@ -72,11 +70,9 @@ int is_valid_directory(const char *path)
     if (path[0] != '/' && (path[0] == '\0' || path[1] != ':'))
     {
         if (getcwd(full_path, sizeof(full_path)) == NULL)
-        {
             return FALSE;
-        }
 
-#ifdef _WIN32
+#ifdef WINDOWS
         strcat(full_path, "\\");
 #else
         strcat(full_path, "/");
@@ -91,7 +87,7 @@ int is_valid_directory(const char *path)
     }
 
 // Check if directory exists and is accessible
-#ifdef _WIN32
+#ifdef WINDOWS
     DWORD attributes = GetFileAttributesA(full_path);
     if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY))
     {
@@ -106,7 +102,7 @@ int is_valid_directory(const char *path)
 #endif
 
 // Check if directory is writable
-#ifdef _WIN32
+#ifdef WINDOWS
     if (_access(full_path, 06) == -1)
     {
         return FALSE;
@@ -125,7 +121,7 @@ int is_valid_directory(const char *path)
 void update_progress_bar(p_tftp_session session)
 {
     static int32_t last_percent = -1;
-    uint32_t percent, i;
+    int percent, i;
 
     // Clear the line
     printf("\r");
@@ -162,7 +158,7 @@ void update_progress_bar(p_tftp_session session)
         printf("[");
         for (i = 0; i < BOX_WIDTH; i++)
         {
-            if (i < (session->block_counter % BOX_WIDTH))
+            if (i < (int)(session->block_counter % BOX_WIDTH))
             {
                 printf("=");
             }

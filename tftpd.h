@@ -34,6 +34,7 @@
 /* Buffer size */
 #define BUFFER_SIZE 600
 #define FILE_BUFFER_SIZE 1048576 /* 1 MB */
+#define SAVE_FILE "tftpd_conf.bin"
 
 /* tftp default values */
 #define OCTET_MODE 1
@@ -59,17 +60,20 @@
 #define MIN_RETRIES 1
 #define MAX_RETRIES 10
 #define BOX_WIDTH 60
+#define TIME_BUFFER 50
 
 /* boolean */
-#define TRUE 1
 #define FALSE 0
+#define TRUE 1
+#define SESSION_SUCCEED 2
+#define SESSION_FAILED -1
 
 /* directory related */
 #ifndef MAX_PATH
 #define MAX_PATH 300
 #endif
 
-#ifdef _WIN32
+#ifdef WINDOWS
 #define PATH_SEPARATOR "\\"
 #else
 #define PATH_SEPARATOR "/"
@@ -84,6 +88,7 @@
 #define OACK 6
 
 /*error msgs */
+#define ERR_UNKNOWN 0
 #define ERR_FILE_NOT_FOUND 1
 #define ERR_ACSS_VIOLATION 2
 #define ERR_DISK_FULL 3
@@ -92,6 +97,15 @@
 #define ERR_FILE_EXISTS 6
 #define ERR_NO_USER 7
 #define ERR_OPT_NEG_FAILED 8
+#define ERR_TIMEOUT 9
+
+/* terminal colors */
+#define CLR_PRIMARY printf("\033[1;36m")
+#define CLR_SECONDARY printf("\033[1;34m")
+#define CLR_ERROR printf("\033[1;31m")
+#define CLR_SUCCESS printf("\033[1;32m")
+#define CLR_WARNING printf("\033[1;35m")
+#define CLR_RESET printf("\033[0m")
 
 /* tftp options */
 typedef struct tftp_options_structure
@@ -176,13 +190,32 @@ typedef struct tftp_data_packet
 extern tftp_server tftpd;
 
 /* macros */
-#define PRINT_ERROR(msg) fprintf(stderr, "%s: %s\n", msg, strerror(errno))
+#define PRINT_ERROR(msg)                                                                                                  \
+    do                                                                                                                    \
+    {                                                                                                                     \
+        CLR_ERROR;                                                                                                        \
+        fprintf(stderr, "TFTPD ERROR on %s %s %d -> %s: %s\n", __FILE__, __FUNCTION__, __LINE__, (msg), strerror(errno)); \
+        CLR_RESET;                                                                                                        \
+    } while (0)
+
+#define VALIDATE_TID(goto_state)                                    \
+    do                                                              \
+    {                                                               \
+        if ((session->transfer_id) != ntohs(client_addr.sin6_port)) \
+        {                                                           \
+            CLR_ERROR;                                              \
+            printf("TID mismatch, transfer aborted\n");             \
+            CLR_RESET;                                              \
+            tftpd_packet_send(session, ERR, NULL, ERR_UNKNOWN_TID); \
+            goto goto_state;                                        \
+        }                                                           \
+    } while (0)
 
 /* functions */
-void tftpd_handle_write_request(p_tftp_session session);
-void tftpd_handle_read_request(p_tftp_session session);
+int tftpd_handle_write_request(p_tftp_session session);
+int tftpd_handle_read_request(p_tftp_session session);
 p_tftp_session tftpd_packet_parser(char *buff, int len);
-int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t *data, uint32_t len);
+int tftpd_packet_send(p_tftp_session session, uint8_t opcode, uint8_t *data, uint32_t len);
 void tftp_server_args_parser(p_tftp_server server, int argc, char **argv);
 
 /*tftpd utils*/

@@ -1,5 +1,18 @@
 #include "tftpd.h"
 
+/* tftp packet error msgs */
+char *tftp_packet_error_msg[] = {
+    "Unknown error",
+    "File not found",
+    "Access violation",
+    "Disk full or allocation exceeded",
+    "Illegal TFTP operation",
+    "Unknown transfer ID",
+    "File already exists",
+    "No such user",
+    "Option negotiation failed",
+    "Timeout"};
+
 p_tftp_session tftpd_packet_parser(char *buff, int len)
 {
     uint8_t option_flag = FALSE;
@@ -107,7 +120,7 @@ p_tftp_session tftpd_packet_parser(char *buff, int len)
 }
 
 /* it will return non zero value if successfull, for data it will return tftpd_packet_send */
-int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t *data, uint32_t len /* error code for error packet*/)
+int tftpd_packet_send(p_tftp_session session, uint8_t opcode, uint8_t *data, uint32_t len /* error code for error packet*/)
 {
     OACK_PACKET *oack_packet = NULL;
     ERR_PACKET *err_packet = NULL;
@@ -154,16 +167,14 @@ int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t
         packet_len += 5 + 1; // 1 for null terminator
         sprintf(buff + packet_len, "%u", session->options.tsize);
         packet_len += digit_counter(session->options.tsize);
-
-        /* code */
         break;
     case ERR:
         err_packet = (ERR_PACKET *)buff;
         err_packet->opcode = htons(ERR);
         err_packet->error_code = htons((uint16_t)len);
         packet_len += 4;
-        strcpy(err_packet->error_msg, msg);
-        packet_len += strlen(msg);
+        strcpy(err_packet->error_msg, tftp_packet_error_msg[len]);
+        packet_len += strlen(tftp_packet_error_msg[len]) + 1;
         break;
     case ACK:
         ack_packet = (ACK_PACKET *)buff;
@@ -184,5 +195,7 @@ int tftpd_packet_send(p_tftp_session session, uint8_t opcode, char *msg, uint8_t
     }
     /* packet send */
     rv = sendto(session->socket_fd, buff, packet_len, 0, (const struct sockaddr *)&session->client_addr, sizeof(session->client_addr));
+    if (rv < 0)
+        PRINT_ERROR("Packet sending failed");
     return rv;
 }

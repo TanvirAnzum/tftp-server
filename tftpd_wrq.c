@@ -1,6 +1,6 @@
 #include "tftpd.h"
 
-void tftpd_handle_write_request(p_tftp_session session)
+int tftpd_handle_write_request(p_tftp_session session)
 {
     uint8_t last_block = FALSE;
     uint16_t opcode;
@@ -17,8 +17,9 @@ void tftpd_handle_write_request(p_tftp_session session)
     uint8_t *file_buffer = (uint8_t *)malloc(FILE_BUFFER_SIZE);
     if (file_buffer == NULL)
     {
-        printf("%s: unable to allocate memory on file buffer\n", __FUNCTION__);
-        return;
+        PRINT_ERROR("Unable to allocate memory for session file buffer");
+        tftpd_packet_send(session, ERR, NULL, ERR_DISK_FULL);
+        return SESSION_FAILED;
     }
 
     session->file_fd = fopen(session->path, "wb");
@@ -52,7 +53,7 @@ void tftpd_handle_write_request(p_tftp_session session)
             else if (rv == 0)
             {
                 // timeout
-                tftpd_packet_send(session, ACK, NULL, NULL, 0);
+                tftpd_packet_send(session, ACK, NULL, 0);
                 retries++;
                 continue;
             }
@@ -65,9 +66,11 @@ void tftpd_handle_write_request(p_tftp_session session)
                     rv = recvfrom(session->socket_fd, buffer, session->options.blocksize + 100, 0, (struct sockaddr *)&client_addr, &client_len);
                     if (rv < 0)
                     {
-                        perror("rcvfrom");
+                        PRINT_ERROR("Unable to receive");
+                        tftpd_packet_send(session, ERR, NULL, ERR_UNKNOWN);
                         goto write_err;
                     }
+                    VALIDATE_TID(write_err);
                     opcode = ntohs(*(uint16_t *)buffer);
                     switch (opcode)
                     {
@@ -76,7 +79,10 @@ void tftpd_handle_write_request(p_tftp_session session)
                         data_packet->block_no = ntohs(data_packet->block_no);
                         if (data_packet->block_no != session->block_counter)
                         {
-                            tftpd_packet_send(session, ERR, "packet block mismatch", NULL, 0);
+                            CLR_ERROR;
+                            printf("Block missmatched, transfer aborted.\n");
+                            CLR_RESET;
+                            tftpd_packet_send(session, ERR, NULL, ERR_ILLEGAL_OPT);
                             goto write_err;
                         }
                         bytes_received = rv - 4; // Subtract header size
@@ -85,10 +91,10 @@ void tftpd_handle_write_request(p_tftp_session session)
                         if (bytes_received < session->options.blocksize)
                             last_block = TRUE;
 
-                        rv = tftpd_packet_send(session, ACK, NULL, NULL, 0);
+                        rv = tftpd_packet_send(session, ACK, NULL, 0);
                         if (rv < 0)
                         {
-                            printf("file packet send error\n");
+                            PRINT_ERROR("Unable to send");
                             goto write_err;
                         }
                         session->bytes_transferred += bytes_received;
@@ -96,7 +102,9 @@ void tftpd_handle_write_request(p_tftp_session session)
                         break;
                     case ERR:
                         err_packet = (ERR_PACKET *)buffer;
-                        printf("ERROR CODE %u: %s\n", ntohs(err_packet->error_code), err_packet->error_msg);
+                        CLR_ERROR;
+                        printf("ERROR packet recieved. ERROR %u: %s\n", ntohs(err_packet->error_code), err_packet->error_msg);
+                        CLR_RESET;
                         goto write_err;
                         break;
                     default:
@@ -109,7 +117,8 @@ void tftpd_handle_write_request(p_tftp_session session)
 
         if (retries == MAX_RETRIES)
         {
-            tftpd_packet_send(session, ERR, "timeout", NULL, 0);
+            PRINT_ERROR("Timeout reached, transfer aborted");
+            tftpd_packet_send(session, ERR, NULL, ERR_TIMEOUT);
             goto write_err;
         }
 
@@ -126,5 +135,8 @@ write_err:
     file_buffer = NULL;
     if (session->file_fd)
         fclose(session->file_fd);
-    return;
+
+    if (last_block)
+        return SESSION_SUCCEED;
+    return SESSION_FAILED;
 }
