@@ -120,57 +120,20 @@ int is_valid_directory(const char *path)
 /* progress bar */
 void update_progress_bar(p_tftp_session session)
 {
-    static int32_t last_percent = -1;
-    int percent, i;
+    char time[TIME_BUFFER];
 
-    // Clear the line
-    printf("\r");
+    if(!session->block_counter)
+        return;
 
-    if (session->options.tsize > 0)
-    {
-        // Calculate percentage
-        percent = (int)((session->bytes_transferred * 100) / session->options.tsize);
-
-        // Only update if the percentage has changed
-        if (percent != last_percent)
-        {
-            last_percent = percent;
-
-            // Print percentage and progress bar
-            printf("[");
-            for (i = 0; i < BOX_WIDTH; i++)
-            {
-                if (i < (percent * BOX_WIDTH / 100))
-                {
-                    printf("=");
-                }
-                else
-                {
-                    printf(" ");
-                }
-            }
-            printf("] %3d%% (%u bytes)", percent, session->bytes_transferred);
-        }
-    }
-    else
-    {
-        // Simple progress bar without percentage
-        printf("[");
-        for (i = 0; i < BOX_WIDTH; i++)
-        {
-            if (i < (int)(session->block_counter % BOX_WIDTH))
-            {
-                printf("=");
-            }
-            else
-            {
-                printf(" ");
-            }
-        }
-        printf("] %u (%u bytes) blocks transferred", session->block_counter, session->bytes_transferred);
+    if(session->block_counter % session->blocks_per_mb == 0) {
+        memset(time, 0, TIME_BUFFER);
+        get_local_time(time, TIME_BUFFER);
+        CLR_WARNING;
+        printf("%s: TFTP session %u has transferred %u bytes.\n", time, session->session_id, session->bytes_transferred);
+        CLR_RESET;
     }
 
-    fflush(stdout);
+    return;
 }
 
 void get_local_time(char *buffer, size_t buffer_size)

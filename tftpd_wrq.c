@@ -8,6 +8,7 @@ int tftpd_handle_write_request(p_tftp_session session)
     socklen_t client_len;
     int rv;
     char buffer[session->options.blocksize + 100];
+    char time[TIME_BUFFER];
     struct sockaddr_in6 client_addr;
     fd_set write_fds;
     struct timeval timeout;
@@ -29,6 +30,13 @@ int tftpd_handle_write_request(p_tftp_session session)
     client_len = sizeof(client_addr);
     timeout.tv_sec = session->options.timeout;
     timeout.tv_usec = 0;
+
+    /* printing info */
+    memset(time, 0, TIME_BUFFER);
+    get_local_time(time, TIME_BUFFER);
+    CLR_SECONDARY;
+    printf("%s: TFTP session %u has started.\n", time, session->session_id);
+    CLR_RESET;
 
     while (1)
     {

@@ -62,7 +62,7 @@ You can start the TFTP server using the following command:
 
 ```bash
 ./tftp_server -b 2048 -t 5 -d /tftdirectory -w 1 -p 1069 -m 3 -s 0 -save
-./tftp_server
+sudo ./tftp_server
 /tftp_server.exe
 ```
 

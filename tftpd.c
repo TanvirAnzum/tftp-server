@@ -66,17 +66,17 @@ int main(int argc, char **argv)
         PRINT_ERROR("Socket binding failed");
         goto clean_up;
     }
+
+    CLR_SECONDARY;
+    printf("TFTP server is listening on port: %d\n", tftpd.port);
+    CLR_RESET;
+
     /* udp packet receiving loop */
     len = sizeof(client_addr);
     while (1)
     {
         memset(buffer, 0, BUFFER_SIZE);
         memset(&client_addr, 0, sizeof(client_addr));
-
-        CLR_SECONDARY;
-        printf("\nTFTP server is listening on port: %d\n", tftpd.port);
-        CLR_RESET;
-
         rv = recvfrom(tftpd.socket_fd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, &len);
         if (rv < 0)
             continue;
@@ -91,10 +91,14 @@ int main(int argc, char **argv)
         tftp_session->transfer_id = ntohs(client_addr.sin6_port);
         memcpy(&tftp_session->client_addr, &client_addr, sizeof(tftp_session->client_addr));
         tftpd.session_count++;
+        tftp_session->session_id = tftpd.session_count;
         get_local_time(time, TIME_BUFFER);
+
+        CLR_SUCCESS;
         printf("%s: TFTP session: %u\n", time, tftpd.session_count);
         print_client_address(&client_addr);
         printf("File name: %s\n", tftp_session->filename);
+        CLR_RESET;
 
         /* new thread creation */
         rv = tftpd_create_thread(tftp_session);
@@ -211,7 +215,7 @@ void tftpd_start_session(p_tftp_session session)
         memset(time, 0, TIME_BUFFER);
         get_local_time(time, TIME_BUFFER);
         CLR_SUCCESS;
-        printf("\n%s: TFTP session %u has finished.\n", time, tftpd.session_count);
+        printf("%s: TFTP session %u has finished.\n", time, session->session_id);
         CLR_RESET;
     }
 
@@ -254,9 +258,11 @@ int tftpd_create_thread(p_tftp_session session)
         return 0;
     }
 
-    // Wait for the thread to complete
-    // If you want concurrent connection just remove this line
-    WaitForSingleObject(hThread, INFINITE);
+    /* 
+        1. wait - for single transfer only
+        2. no wait - for concurrent transfer
+    */
+    // WaitForSingleObject(hThread, INFINITE);
 
     // Close the thread handle
     CloseHandle(hThread);
@@ -272,7 +278,7 @@ int tftpd_create_thread(p_tftp_session session)
     }
 
     // Wait for the thread to complete
-    pthread_join(thread, NULL);
+    // pthread_join(thread, NULL);
 #endif
     return 1;
 }

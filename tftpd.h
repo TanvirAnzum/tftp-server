@@ -142,7 +142,9 @@ typedef struct tftpd_session_structure
     char filename[MAX_FILENAME];
     char path[MAX_PATH + 1];
     int socket_fd;
+    uint32_t session_id;
     uint32_t block_counter;
+    uint32_t blocks_per_mb;  /* number of blocks to get 1 MB */
     uint32_t offset;
     uint32_t bytes_transferred;
     uint16_t transfer_id;
@@ -224,7 +226,8 @@ long long get_file_size(const char *filename);
 void print_client_address(struct sockaddr_in6 *src_addr);
 uint32_t digit_counter(long long unsigned n);
 int is_valid_directory(const char *path);
-void update_progress_bar(p_tftp_session session);
 void get_local_time(char *buffer, size_t buffer_size);
+void update_progress_bar(p_tftp_session session);
+
 
 #endif

@@ -116,6 +116,9 @@ p_tftp_session tftpd_packet_parser(char *buff, int len)
     if (option_flag)
         new_session->options_enabled = TRUE;
 
+    /* calculate blocks to gain 1 MB*/
+    new_session->blocks_per_mb = 1048576 / new_session->options.blocksize;
+
     return new_session;
 }
 

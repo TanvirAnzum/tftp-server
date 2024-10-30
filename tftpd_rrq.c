@@ -9,6 +9,7 @@ int tftpd_handle_read_request(p_tftp_session session)
     socklen_t client_len;
     int rv;
     char buffer[BUFFER_SIZE];
+    char time[TIME_BUFFER];
     struct sockaddr_in6 client_addr;
     fd_set read_fds;
     struct timeval timeout;
@@ -57,6 +58,13 @@ int tftpd_handle_read_request(p_tftp_session session)
             goto read_err;
         }
     }
+
+    /* printing info */
+    memset(time, 0, TIME_BUFFER);
+    get_local_time(time, TIME_BUFFER);
+    CLR_SECONDARY;
+    printf("%s: TFTP session %u has started.\n", time, session->session_id);
+    CLR_RESET;
 
     while (1)
     {
